@@ -24,5 +24,19 @@ for %%P in (python3 python) do (
     )
 )
 
+for %%F in (
+    "%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+    "%LOCALAPPDATA%\Programs\Python\Python311\python.exe"
+    "%LOCALAPPDATA%\Programs\Python\Python310\python.exe"
+) do (
+    if exist %%F (
+        %%F -c "import sys; raise SystemExit(0 if sys.version_info>=(3,9) else 1)" >nul 2>&1
+        if !errorlevel! equ 0 (
+            endlocal & echo %%F
+            exit /b 0
+        )
+    )
+)
+
 endlocal
 exit /b 1

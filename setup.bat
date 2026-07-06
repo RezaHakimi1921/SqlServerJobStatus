@@ -7,13 +7,22 @@ echo   SQL Server Agent Monitor - Setup
 echo ============================================================
 echo.
 
-set "PYTHON_CMD="
-for /f "delims=" %%P in ('call "%~dp0scripts\resolve_python.bat"') do set "PYTHON_CMD=%%P"
+call :find_python
+if not defined PYTHON_CMD (
+    echo Python not found. Downloading and installing automatically...
+    echo This requires internet access and may take a few minutes.
+    echo.
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\bootstrap_prerequisites.ps1"
+    if errorlevel 1 (
+        call "%~dp0scripts\print_python_help.bat"
+        pause
+        exit /b 1
+    )
+    call :find_python
+)
 
 if not defined PYTHON_CMD (
     call "%~dp0scripts\print_python_help.bat"
-    echo Opening Python download page...
-    start "" "https://www.python.org/downloads/" 2>nul
     pause
     exit /b 1
 )
@@ -45,19 +54,31 @@ if errorlevel 1 (
 )
 
 echo.
-echo [3/3] Checking installed packages and ODBC drivers...
+echo [3/3] Checking packages and ODBC drivers...
 %PYTHON_CMD% "%~dp0scripts\check_prerequisites.py"
 set "CHECK_RC=!errorlevel!"
+
+if !CHECK_RC! neq 0 (
+    echo.
+    echo ODBC driver missing. Installing automatically...
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\bootstrap_prerequisites.ps1"
+    %PYTHON_CMD% "%~dp0scripts\check_prerequisites.py"
+    set "CHECK_RC=!errorlevel!"
+)
 
 echo.
 if !CHECK_RC! equ 0 (
     echo ============================================================
-    echo   Setup complete. Double-click run.bat to start the app.
-    echo   نصب تمام شد. run.bat را اجرا کنید.
+    echo   Setup complete. Run run.bat to start the app.
     echo ============================================================
 ) else (
-    echo Setup finished with warnings — see messages above.
+    echo Setup finished with warnings. See messages above.
 )
 
 pause
 exit /b !CHECK_RC!
+
+:find_python
+set "PYTHON_CMD="
+for /f "delims=" %%P in ('call "%~dp0scripts\resolve_python.bat"') do set "PYTHON_CMD=%%P"
+exit /b 0

@@ -11,7 +11,7 @@ def main() -> int:
             __import__("dotenv" if pkg == "dotenv" else pkg)
             print(f"  OK  {pkg}")
         except ImportError:
-            print(f"  FAIL  {pkg} — run setup.bat again")
+            print(f"  FAIL  {pkg} - run setup.bat again")
             errors += 1
 
     try:
@@ -28,7 +28,7 @@ def main() -> int:
         print(f"WARNING: Could not list ODBC drivers: {exc}")
 
     if errors:
-        print("\nSetup incomplete — fix errors above and re-run setup.bat")
+        print("\nSetup incomplete - fix errors above and re-run setup.bat")
         return 1
 
     print("\nAll Python packages OK. Run run.bat to start the app.")

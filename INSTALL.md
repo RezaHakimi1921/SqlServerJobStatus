@@ -65,11 +65,17 @@ Double-click **`setup.bat`** or:
 setup.bat
 ```
 
-It will:
+**No Python installed?** `setup.bat` will automatically download and install:
 
-- Find Python automatically (`py -3`, `py`, `python3`, `python`)
-- Install packages from `requirements.txt`
-- Check ODBC drivers
+- Python 3.12 (via winget, or direct download from python.org)
+- ODBC Driver 17 for SQL Server (via winget, or Microsoft MSI)
+
+Internet access is required on first run.
+
+It will also:
+
+- Install Python packages from `requirements.txt`
+- Verify ODBC drivers
 
 ---
 

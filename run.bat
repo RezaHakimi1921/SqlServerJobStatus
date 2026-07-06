@@ -7,8 +7,7 @@ for /f "delims=" %%P in ('call "%~dp0scripts\resolve_python.bat"') do set "PYTHO
 
 if not defined PYTHON_CMD (
     call "%~dp0scripts\print_python_help.bat"
-    echo Run setup.bat first after installing Python.
-    echo اول Python را نصب کنید، بعد setup.bat را اجرا کنید.
+    echo Run setup.bat first.
     pause
     exit /b 1
 )
@@ -27,7 +26,7 @@ set "APP_RC=!errorlevel!"
 
 if !APP_RC! neq 0 (
     echo.
-    echo App exited with error. If packages are missing, run setup.bat first.
+    echo App exited with error. Run setup.bat if packages are missing.
 )
 
 pause
