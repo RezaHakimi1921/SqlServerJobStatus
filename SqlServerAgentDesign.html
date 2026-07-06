@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Data Agent Monitor - SQL Server Jobs</title>
+        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@200;400;500;600;700;800;900&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+        <style>
+            :root {
+                --bg-primary: #0c0e14;
+                --bg-secondary: #13151e;
+                --bg-card: #191c28;
+                --bg-card-hover: #1e2233;
+                --bg-elevated: #222639;
+                --border: #2a2e3f;
+                --border-light: #353a50;
+                --text-primary: #e8eaf0;
+                --text-secondary: #9499b0;
+                --text-muted: #5d6280;
+                --accent-running: #3dd9b6;
+                --accent-running-bg: rgba(61,217,182,0.08);
+                --accent-running-border: rgba(61,217,182,0.2);
+                --accent-success: #4ade80;
+                --accent-success-bg: rgba(74,222,128,0.08);
+                --accent-error: #f87171;
+                --accent-error-bg: rgba(248,113,113,0.08);
+                --accent-error-border: rgba(248,113,113,0.2);
+                --accent-failed: #fb923c;
+                --accent-failed-bg: rgba(251,146,60,0.08);
+                --accent-idle: #64748b;
+                --accent-idle-bg: rgba(100,116,139,0.08);
+                --gantt-row-h: 42px;
+                --gantt-label-w: 320px;
+                --gantt-timeline-min: 90px;
+            }
+
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+
+            body {
+                font-family: 'Vazirmatn', sans-serif;
+                background: var(--bg-primary);
+                color: var(--text-primary);
+                min-height: 100vh;
+                overflow-x: hidden;
+            }
+
+            body::before {
+                content: '';
+                position: fixed;
+                inset: 0;
+                background: 
+                    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(61,217,182,0.04), transparent),
+                    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(248,113,113,0.03), transparent);
+                pointer-events: none;
+                z-index: 0;
+            }
+
+            .app-container {
+                position: relative;
+                z-index: 1;
+                max-width: 1440px;
+                margin: 0 auto;
+                padding: 24px 32px 48px;
+            }
+
+            /* === هدر === */
+            .app-header {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 0;
+                padding-bottom: 16px;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .header-right {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+            }
+
+            .logo-icon {
+                width: 40px; height: 40px;
+                border-radius: 10px;
+                background: linear-gradient(135deg, var(--accent-running), #2ab89a);
+                display: flex; align-items: center; justify-content: center;
+                font-size: 18px; color: #0c0e14;
+                box-shadow: 0 4px 20px rgba(61,217,182,0.2);
+            }
+
+            .header-title h1 { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
+            .header-title span { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+
+            .header-left { display: flex; align-items: center; gap: 12px; }
+
+            .header-btn {
+                width: 38px; height: 38px; border-radius: 10px;
+                border: 1px solid var(--border); background: var(--bg-card);
+                color: var(--text-secondary);
+                display: flex; align-items: center; justify-content: center;
+                cursor: pointer; transition: all 0.2s; font-size: 14px; position: relative;
+            }
+
+            .header-btn:hover {
+                background: var(--bg-card-hover);
+                border-color: var(--border-light); color: var(--text-primary);
+            }
+
+            .header-btn .badge {
+                position: absolute; top: -3px; left: -3px;
+                width: 16px; height: 16px; border-radius: 50%;
+                background: var(--accent-error); font-size: 9px;
+                display: flex; align-items: center; justify-content: center;
+                color: #fff; font-weight: 700; border: 2px solid var(--bg-primary);
+            }
+
+            .refresh-btn { width: auto; padding: 0 14px; gap: 7px; font-size: 13px; font-family: 'Vazirmatn', sans-serif; font-weight: 500; }
+            .refresh-btn i { transition: transform 0.5s; }
+            .refresh-btn.spinning i { transform: rotate(360deg); }
+
+            .live-indicator {
+                display: flex; align-items: center; gap: 7px;
+                font-size: 12px; color: var(--accent-running); font-weight: 500;
+                padding: 6px 12px; border-radius: 20px;
+                background: var(--accent-running-bg); border: 1px solid var(--accent-running-border);
+            }
+
+            .live-dot {
+                width: 7px; height: 7px; border-radius: 50%;
+                background: var(--accent-running);
+                animation: livePulse 2s ease-in-out infinite;
+            }
+
+            @keyframes livePulse {
+                0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(61,217,182,0.4); }
+                50% { opacity: 0.6; box-shadow: 0 0 0 5px rgba(61,217,182,0); }
+            }
+
+            /* === تب‌های اصلی === */
+            .main-tabs {
+                display: flex;
+                align-items: center;
+                gap: 2px;
+                padding: 14px 0 0;
+                margin-bottom: 24px;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .main-tab {
+                padding: 10px 20px;
+                font-size: 14px;
+                font-family: 'Vazirmatn', sans-serif;
+                font-weight: 600;
+                color: var(--text-muted);
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                position: relative;
+                transition: color 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .main-tab:hover { color: var(--text-secondary); }
+
+            .main-tab.active {
+                color: var(--accent-running);
+            }
+
+            .main-tab.active::after {
+                content: '';
+                position: absolute;
+                bottom: -1px;
+                right: 0;
+                left: 0;
+                height: 2px;
+                background: var(--accent-running);
+                border-radius: 2px 2px 0 0;
+            }
+
+            .main-tab i { font-size: 13px; }
+
+            .main-tab .tab-badge {
+                font-size: 11px;
+                font-weight: 700;
+                padding: 1px 7px;
+                border-radius: 6px;
+                background: var(--bg-elevated);
+                color: var(--text-muted);
+            }
+
+            .main-tab.active .tab-badge {
+                background: var(--accent-running-bg);
+                color: var(--accent-running);
+            }
+
+            /* === پنل‌های محتوا === */
+            .view-panel { display: none; }
+            .view-panel.active { display: block; animation: fadeIn 0.3s ease; }
+
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(6px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+
+            /* === کارت‌های آماری === */
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(5, 1fr);
+                gap: 14px;
+                margin-bottom: 28px;
+            }
+
+            .stat-card {
+                background: var(--bg-card); border: 1px solid var(--border);
+                border-radius: 14px; padding: 18px 20px;
+                position: relative; overflow: hidden;
+                cursor: pointer; transition: all 0.25s;
+            }
+
+            .stat-card:hover { border-color: var(--border-light); transform: translateY(-1px); }
+
+            .stat-card::before {
+                content: ''; position: absolute; top: 0; right: 0;
+                width: 100%; height: 3px;
+            }
+
+            .stat-card.running::before { background: linear-gradient(90deg, var(--accent-running), transparent); }
+            .stat-card.error::before { background: linear-gradient(90deg, var(--accent-error), transparent); }
+            .stat-card.success::before { background: linear-gradient(90deg, var(--accent-success), transparent); }
+            .stat-card.failed::before { background: linear-gradient(90deg, var(--accent-failed), transparent); }
+            .stat-card.idle::before { background: linear-gradient(90deg, var(--accent-idle), transparent); }
+
+            .stat-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+            .stat-label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+
+            .stat-icon {
+                width: 32px; height: 32px; border-radius: 8px;
+                display: flex; align-items: center; justify-content: center; font-size: 13px;
+            }
+
+            .stat-card.running .stat-icon { background: var(--accent-running-bg); color: var(--accent-running); }
+            .stat-card.error .stat-icon { background: var(--accent-error-bg); color: var(--accent-error); }
+            .stat-card.success .stat-icon { background: var(--accent-success-bg); color: var(--accent-success); }
+            .stat-card.failed .stat-icon { background: var(--accent-failed-bg); color: var(--accent-failed); }
+            .stat-card.idle .stat-icon { background: var(--accent-idle-bg); color: var(--accent-idle); }
+
+            .stat-value { font-size: 32px; font-weight: 900; line-height: 1; margin-bottom: 4px; }
+            .stat-card.running .stat-value { color: var(--accent-running); }
+            .stat-card.error .stat-value { color: var(--accent-error); }
+            .stat-card.success .stat-value { color: var(--accent-success); }
+            .stat-card.failed .stat-value { color: var(--accent-failed); }
+            .stat-card.idle .stat-value { color: var(--accent-idle); }
+            .stat-sub { font-size: 11px; color: var(--text-muted); }
+
+            /* === نوار ابزار لیست === */
+            .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; }
+            .toolbar-right { display: flex; align-items: center; gap: 8px; }
+
+            .filter-tab {
+                padding: 7px 16px; border-radius: 8px; font-size: 13px;
+                font-family: 'Vazirmatn', sans-serif; font-weight: 500;
+                border: 1px solid transparent; background: transparent;
+                color: var(--text-secondary); cursor: pointer; transition: all 0.2s; white-space: nowrap;
+            }
+
+            .filter-tab:hover { color: var(--text-primary); background: var(--bg-card); }
+
+            .filter-tab.active { background: var(--bg-card); border-color: var(--border-light); color: var(--text-primary); }
+
+            .filter-tab .count {
+                display: inline-flex; align-items: center; justify-content: center;
+                min-width: 20px; height: 20px; border-radius: 6px;
+                font-size: 11px; font-weight: 700; margin-right: 6px; padding: 0 5px;
+            }
+
+            .filter-tab.active .count.running-count { background: var(--accent-running-bg); color: var(--accent-running); }
+            .filter-tab.active .count.error-count { background: var(--accent-error-bg); color: var(--accent-error); }
+            .filter-tab.active .count.success-count { background: var(--accent-success-bg); color: var(--accent-success); }
+            .filter-tab.active .count.failed-count { background: var(--accent-failed-bg); color: var(--accent-failed); }
+
+            .toolbar-left { display: flex; align-items: center; gap: 10px; }
+
+            .search-box { position: relative; }
+
+            .search-box input {
+                width: 260px; height: 38px; border-radius: 10px;
+                border: 1px solid var(--border); background: var(--bg-card);
+                color: var(--text-primary); padding: 0 14px 0 38px;
+                font-size: 13px; font-family: 'Vazirmatn', sans-serif;
+                transition: all 0.2s; outline: none;
+            }
+
+            .search-box input::placeholder { color: var(--text-muted); }
+            .search-box input:focus { border-color: var(--accent-running); box-shadow: 0 0 0 3px rgba(61,217,182,0.1); }
+            .search-box i { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--text-muted); font-size: 13px; }
+
+            /* === لیست جاب‌ها === */
+            .jobs-container { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+
+            .jobs-header {
+                display: grid;
+                grid-template-columns: 40px 1fr 110px 130px 120px 100px 50px;
+                padding: 0 20px; height: 44px; align-items: center;
+                background: var(--bg-elevated); border-bottom: 1px solid var(--border);
+                font-size: 12px; color: var(--text-muted); font-weight: 600;
+            }
+
+            .jobs-header > div { padding: 0 8px; }
+
+            .job-row {
+                display: grid;
+                grid-template-columns: 40px 1fr 110px 130px 120px 100px 50px;
+                padding: 0 20px; min-height: 56px; align-items: center;
+                border-bottom: 1px solid var(--border); transition: background 0.15s; cursor: pointer;
+            }
+
+            .job-row:last-child { border-bottom: none; }
+            .job-row:hover { background: var(--bg-card-hover); }
+            .job-row > div { padding: 10px 8px; }
+
+            .job-checkbox { display: flex; align-items: center; justify-content: center; }
+
+            .job-checkbox input[type="checkbox"] {
+                width: 16px; height: 16px; border-radius: 4px;
+                border: 1.5px solid var(--border-light); background: transparent;
+                cursor: pointer; appearance: none; -webkit-appearance: none;
+                position: relative; transition: all 0.15s;
+            }
+
+            .job-checkbox input[type="checkbox"]:checked { background: var(--accent-running); border-color: var(--accent-running); }
+
+            .job-checkbox input[type="checkbox"]:checked::after {
+                content: '✓'; position: absolute; inset: 0;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 11px; color: #0c0e14; font-weight: 900;
+            }
+
+            .job-name-cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+            .job-name {
+                font-size: 13.5px; font-weight: 600; color: var(--text-primary);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+
+            .job-category { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+            .job-category i { font-size: 10px; }
+
+            .status-badge {
+                display: inline-flex; align-items: center; gap: 6px;
+                padding: 4px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; white-space: nowrap;
+            }
+
+            .status-badge.running { background: var(--accent-running-bg); color: var(--accent-running); border: 1px solid var(--accent-running-border); }
+            .status-badge.error { background: var(--accent-error-bg); color: var(--accent-error); border: 1px solid var(--accent-error-border); }
+            .status-badge.success { background: var(--accent-success-bg); color: var(--accent-success); }
+            .status-badge.failed { background: var(--accent-failed-bg); color: var(--accent-failed); }
+
+            .status-badge .pulse-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+            .status-badge.running .pulse-dot { animation: livePulse 2s ease-in-out infinite; }
+
+            .progress-cell { display: flex; align-items: center; gap: 10px; }
+
+            .progress-bar-wrapper { flex: 1; height: 6px; background: var(--bg-elevated); border-radius: 10px; overflow: hidden; }
+            .progress-bar-fill { height: 100%; border-radius: 10px; transition: width 0.6s ease; }
+            .progress-bar-fill.running { background: linear-gradient(90deg, var(--accent-running), #2dd4a8); }
+            .progress-bar-fill.error { background: var(--accent-error); }
+            .progress-bar-fill.success { background: var(--accent-success); }
+            .progress-bar-fill.failed { background: var(--accent-failed); }
+
+            .progress-text { font-size: 12px; color: var(--text-muted); font-weight: 500; min-width: 34px; text-align: left; }
+            .time-cell { font-size: 12.5px; color: var(--text-secondary); }
+            .time-cell i { margin-left: 5px; font-size: 11px; color: var(--text-muted); }
+            .next-run-cell { font-size: 12px; color: var(--text-muted); }
+
+            .action-btn {
+                width: 30px; height: 30px; border-radius: 7px; border: none;
+                background: transparent; color: var(--text-muted); cursor: pointer;
+                display: flex; align-items: center; justify-content: center; transition: all 0.15s; font-size: 13px;
+            }
+
+            .action-btn:hover { background: var(--bg-elevated); color: var(--text-primary); }
+
+            .pagination-bar {
+                display: flex; align-items: center; justify-content: space-between;
+                padding: 14px 20px; background: var(--bg-elevated); border-top: 1px solid var(--border);
+            }
+
+            .pagination-info { font-size: 12px; color: var(--text-muted); }
+
+            .pagination-controls { display: flex; align-items: center; gap: 4px; }
+
+            .page-btn {
+                width: 32px; height: 32px; border-radius: 8px;
+                border: 1px solid var(--border); background: transparent;
+                color: var(--text-secondary); cursor: pointer;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 13px; font-family: 'Vazirmatn', sans-serif; font-weight: 500; transition: all 0.15s;
+            }
+
+            .page-btn:hover { background: var(--bg-card-hover); border-color: var(--border-light); }
+            .page-btn.active { background: var(--accent-running); border-color: var(--accent-running); color: #0c0e14; font-weight: 700; }
+
+            .tooltip-wrapper { position: relative; }
+
+            .tooltip-wrapper .tooltip {
+                position: absolute; bottom: calc(100% + 8px); left: 50%;
+                transform: translateX(-50%) scale(0.95);
+                background: var(--bg-elevated); border: 1px solid var(--border-light);
+                border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--text-secondary);
+                white-space: nowrap; opacity: 0; pointer-events: none; transition: all 0.2s;
+                z-index: 10; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            }
+
+            .tooltip-wrapper:hover .tooltip { opacity: 1; transform: translateX(-50%) scale(1); }
+
+            /* ============================= */
+            /* ===== نمودار گانت ========= */
+            /* ============================= */
+
+            .gantt-wrapper {
+                background: var(--bg-card);
+                border: 1px solid var(--border);
+                border-radius: 14px;
+                overflow: hidden;
+            }
+
+            /* نوار ابزار گانت */
+            .gantt-toolbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 12px 20px;
+                border-bottom: 1px solid var(--border);
+                background: var(--bg-elevated);
+            }
+
+            .gantt-toolbar-right {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .gantt-filter-chip {
+                padding: 5px 14px;
+                border-radius: 7px;
+                font-size: 12px;
+                font-family: 'Vazirmatn', sans-serif;
+                font-weight: 500;
+                border: 1px solid var(--border);
+                background: transparent;
+                color: var(--text-secondary);
+                cursor: pointer;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+
+            .gantt-filter-chip:hover { border-color: var(--border-light); color: var(--text-primary); }
+
+            .gantt-filter-chip.active { background: var(--bg-card); border-color: var(--border-light); color: var(--text-primary); }
+
+            .gantt-filter-chip .chip-dot {
+                width: 8px; height: 8px; border-radius: 50%;
+            }
+
+            .gantt-filter-chip .chip-dot.running { background: var(--accent-running); }
+            .gantt-filter-chip .chip-dot.error { background: var(--accent-error); }
+            .gantt-filter-chip .chip-dot.success { background: var(--accent-success); }
+            .gantt-filter-chip .chip-dot.failed { background: var(--accent-failed); }
+
+            .gantt-toolbar-left {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .gantt-zoom-btn {
+                width: 32px; height: 32px; border-radius: 7px;
+                border: 1px solid var(--border); background: var(--bg-card);
+                color: var(--text-secondary); cursor: pointer;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 12px; transition: all 0.15s;
+            }
+
+            .gantt-zoom-btn:hover { border-color: var(--border-light); color: var(--text-primary); }
+
+            .gantt-zoom-label {
+                font-size: 12px; color: var(--text-muted);
+                min-width: 40px; text-align: center;
+            }
+
+            /* ناحیه گانت */
+            .gantt-area {
+                display: flex;
+                overflow: hidden;
+                position: relative;
+            }
+
+            /* پنل لیبل‌ها (ثابت) */
+            .gantt-labels {
+                width: var(--gantt-label-w);
+                min-width: var(--gantt-label-w);
+                border-left: 1px solid var(--border);
+                background: var(--bg-card);
+                position: sticky;
+                right: 0;
+                z-index: 5;
+            }
+
+            .gantt-label-header {
+                height: 52px;
+                display: flex;
+                align-items: center;
+                padding: 0 16px;
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--text-muted);
+                border-bottom: 1px solid var(--border);
+                background: var(--bg-elevated);
+            }
+
+            .gantt-label-row {
+                height: var(--gantt-row-h);
+                display: flex;
+                align-items: center;
+                padding: 0 16px;
+                border-bottom: 1px solid var(--border);
+                gap: 10px;
+                transition: background 0.15s;
+                cursor: default;
+            }
+
+            .gantt-label-row:hover { background: var(--bg-card-hover); }
+
+            .gantt-label-status-dot {
+                width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+            }
+
+            .gantt-label-status-dot.running { background: var(--accent-running); box-shadow: 0 0 6px rgba(61,217,182,0.4); }
+            .gantt-label-status-dot.error { background: var(--accent-error); box-shadow: 0 0 6px rgba(248,113,113,0.4); }
+            .gantt-label-status-dot.success { background: var(--accent-success); }
+            .gantt-label-status-dot.failed { background: var(--accent-failed); }
+
+            .gantt-label-name {
+                font-size: 12.5px; font-weight: 500; color: var(--text-primary);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            }
+
+            /* پنل تایم‌لاین (اسکرول‌پذیر) */
+            .gantt-timeline-wrapper {
+                flex: 1;
+                overflow-x: auto;
+                overflow-y: hidden;
+                position: relative;
+            }
+
+            .gantt-timeline-wrapper::-webkit-scrollbar { height: 6px; }
+            .gantt-timeline-wrapper::-webkit-scrollbar-track { background: var(--bg-card); }
+            .gantt-timeline-wrapper::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+            .gantt-timeline {
+                position: relative;
+                min-width: 100%;
+            }
+
+            /* هدر تایم‌لاین */
+            .gantt-time-header {
+                height: 52px;
+                display: flex;
+                border-bottom: 1px solid var(--border);
+                background: var(--bg-elevated);
+                position: sticky;
+                top: 0;
+                z-index: 3;
+            }
+
+            .gantt-time-cell {
+                min-width: var(--gantt-timeline-min);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--text-muted);
+                border-left: 1px solid var(--border);
+                flex-shrink: 0;
+            }
+
+            /* خطوط شبکه عمودی */
+            .gantt-grid {
+                position: absolute;
+                top: 52px;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                pointer-events: none;
+                z-index: 1;
+            }
+
+            .gantt-grid-line {
+                position: absolute;
+                top: 0; bottom: 0;
+                width: 1px;
+                background: var(--border);
+                opacity: 0.5;
+            }
+
+            /* ردیف‌های گانت */
+            .gantt-rows {
+                position: relative;
+                z-index: 2;
+            }
+
+            .gantt-row {
+                height: var(--gantt-row-h);
+                position: relative;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .gantt-row:hover { background: rgba(255,255,255,0.01); }
+
+            /* بار گانت */
+            .gantt-bar {
+                position: absolute;
+                top: 8px;
+                height: 26px;
+                border-radius: 6px;
+                cursor: pointer;
+                transition: filter 0.15s, transform 0.15s;
+                display: flex;
+                align-items: center;
+                overflow: hidden;
+            }
+
+            .gantt-bar:hover {
+                filter: brightness(1.2);
+                transform: scaleY(1.1);
+                z-index: 4;
+            }
+
+            .gantt-bar.running {
+                background: linear-gradient(90deg, rgba(61,217,182,0.7), rgba(61,217,182,0.35));
+                border: 1px solid rgba(61,217,182,0.4);
+            }
+
+            .gantt-bar.error {
+                background: linear-gradient(90deg, rgba(248,113,113,0.7), rgba(248,113,113,0.35));
+                border: 1px solid rgba(248,113,113,0.4);
+            }
+
+            .gantt-bar.success {
+                background: linear-gradient(90deg, rgba(74,222,128,0.5), rgba(74,222,128,0.2));
+                border: 1px solid rgba(74,222,128,0.3);
+            }
+
+            .gantt-bar.failed {
+                background: linear-gradient(90deg, rgba(251,146,60,0.7), rgba(251,146,60,0.35));
+                border: 1px solid rgba(251,146,60,0.4);
+            }
+
+            /* نوار پیشرفت داخل بار */
+            .gantt-bar-progress {
+                height: 100%;
+                border-radius: 5px;
+                transition: width 0.6s ease;
+            }
+
+            .gantt-bar.running .gantt-bar-progress { background: rgba(61,217,182,0.5); }
+            .gantt-bar.error .gantt-bar-progress { background: rgba(248,113,113,0.5); }
+            .gantt-bar.success .gantt-bar-progress { background: rgba(74,222,128,0.4); }
+            .gantt-bar.failed .gantt-bar-progress { background: rgba(251,146,60,0.5); }
+
+            /* پالس برای جاب‌های در حال اجرا */
+            .gantt-bar.running::after {
+                content: '';
+                position: absolute;
+                left: 0; top: 0; bottom: 0;
+                width: 30px;
+                background: linear-gradient(90deg, rgba(61,217,182,0.4), transparent);
+                animation: ganttPulse 2s ease-in-out infinite;
+            }
+
+            @keyframes ganttPulse {
+                0% { opacity: 0.3; }
+                50% { opacity: 1; }
+                100% { opacity: 0.3; }
+            }
+
+            /* تولتیپ گانت */
+            .gantt-tooltip {
+                position: fixed;
+                background: var(--bg-elevated);
+                border: 1px solid var(--border-light);
+                border-radius: 10px;
+                padding: 12px 16px;
+                font-size: 12px;
+                color: var(--text-secondary);
+                z-index: 100;
+                pointer-events: none;
+                opacity: 0;
+                transition: opacity 0.15s;
+                box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+                min-width: 220px;
+            }
+
+            .gantt-tooltip.visible { opacity: 1; }
+
+            .gantt-tooltip-name {
+                font-size: 13px;
+                font-weight: 700;
+                color: var(--text-primary);
+                margin-bottom: 8px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 280px;
+            }
+
+            .gantt-tooltip-row {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 3px 0;
+            }
+
+            .gantt-tooltip-label { color: var(--text-muted); }
+
+            .gantt-tooltip-value { font-weight: 600; color: var(--text-primary); }
+
+            /* خط زمان حال */
+            .gantt-now-line {
+                position: absolute;
+                top: 0; bottom: 0;
+                width: 2px;
+                background: var(--accent-error);
+                z-index: 6;
+                pointer-events: none;
+            }
+
+            .gantt-now-line::before {
+                content: 'الان';
+                position: absolute;
+                top: -1px;
+                right: 6px;
+                font-size: 10px;
+                font-weight: 700;
+                color: var(--accent-error);
+                background: var(--bg-elevated);
+                padding: 2px 6px;
+                border-radius: 4px;
+                border: 1px solid var(--accent-error-bg);
+                white-space: nowrap;
+            }
+
+            /* === انیمیشن ورود === */
+            @keyframes fadeSlideUp {
+                from { opacity: 0; transform: translateY(12px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+
+            .animate-in { animation: fadeSlideUp 0.4s ease forwards; opacity: 0; }
+            .animate-in:nth-child(1) { animation-delay: 0.05s; }
+            .animate-in:nth-child(2) { animation-delay: 0.1s; }
+            .animate-in:nth-child(3) { animation-delay: 0.15s; }
+            .animate-in:nth-child(4) { animation-delay: 0.2s; }
+            .animate-in:nth-child(5) { animation-delay: 0.25s; }
+
+            .job-row-animate { animation: fadeSlideUp 0.3s ease forwards; opacity: 0; }
+
+            ::-webkit-scrollbar { width: 6px; }
+            ::-webkit-scrollbar-track { background: transparent; }
+            ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+            ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+            @media (max-width: 1100px) {
+                .stats-grid { grid-template-columns: repeat(3, 1fr); }
+                :root { --gantt-label-w: 220px; }
+            }
+
+            @media (max-width: 768px) {
+                .app-container { padding: 16px; }
+                .stats-grid { grid-template-columns: repeat(2, 1fr); }
+                :root { --gantt-label-w: 160px; --gantt-timeline-min: 70px; }
+                .gantt-label-name { font-size: 11px; }
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+                *, *::before, *::after {
+                    animation-duration: 0.01ms !important;
+                    transition-duration: 0.01ms !important;
+                }
+            }
+        </style>
+    </head>
+<body>
+    <div class="app-container">
+        <!-- هدر -->
+        <header class="app-header animate-in">
+            <div class="header-right">
+                <div class="logo-icon"><i class="fas fa-database"></i></div>
+                <div class="header-title">
+                    <h1>Data Agent Monitor</h1>
+                    <span>SQL Server Jobs Dashboard</span>
+                </div>
+            </div>
+            <div class="header-left">
+                <div class="live-indicator">
+                    <div class="live-dot"></div>
+                    زنده
+                </div>
+                <div class="tooltip-wrapper">
+                    <button class="header-btn" aria-label="اعلان‌ها">
+                        <i class="fas fa-bell"></i>
+                        <span class="badge">4</span>
+                    </button>
+                    <div class="tooltip">اعلان‌ها</div>
+                </div>
+                <div class="tooltip-wrapper">
+                    <button class="header-btn" aria-label="تنظیمات"><i class="fas fa-cog"></i></button>
+                    <div class="tooltip">تنظیمات</div>
+                </div>
+                <button class="header-btn refresh-btn" id="refreshBtn" aria-label="بروزرسانی">
+                    <i class="fas fa-sync-alt"></i>
+                    بروزرسانی
+                </button>
+            </div>
+        </header>
+
+        <!-- تب‌های اصلی -->
+        <nav class="main-tabs" role="tablist" aria-label="نمای اصلی">
+            <button class="main-tab active" data-view="list" role="tab" aria-selected="true">
+                <i class="fas fa-list-ul"></i>
+                جلسه جاری
+                <span class="tab-badge">87</span>
+            </button>
+            <button class="main-tab" data-view="gantt" role="tab" aria-selected="false">
+                <i class="fas fa-chart-gantt"></i>
+                Gantt
+            </button>
+            <button class="main-tab" data-view="report" role="tab" aria-selected="false">
+                <i class="fas fa-file-alt"></i>
+                گزارش کامل
+            </button>
+        </nav>
+
+        <!-- ======== پنل لیست ======== -->
+        <div class="view-panel active" id="listPanel">
+            <section class="stats-grid" aria-label="خلاصه وضعیت">
+                <div class="stat-card running animate-in" data-filter="running">
+                    <div class="stat-header">
+                        <span class="stat-label">در حال اجرا</span>
+                        <div class="stat-icon"><i class="fas fa-play"></i></div>
+                    </div>
+                    <div class="stat-value">43</div>
+                    <div class="stat-sub">از ۸۷ جاب فعال</div>
+                </div>
+                <div class="stat-card error animate-in" data-filter="error">
+                    <div class="stat-header">
+                        <span class="stat-label">خطا</span>
+                        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    </div>
+                    <div class="stat-value">4</div>
+                    <div class="stat-sub">نیاز به بررسی</div>
+                </div>
+                <div class="stat-card success animate-in" data-filter="success">
+                    <div class="stat-header">
+                        <span class="stat-label">موفق</span>
+                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                    </div>
+                    <div class="stat-value">39</div>
+                    <div class="stat-sub">آخرین اجرا</div>
+                </div>
+                <div class="stat-card failed animate-in" data-filter="failed">
+                    <div class="stat-header">
+                        <span class="stat-label">شکست‌خورده</span>
+                        <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
+                    </div>
+                    <div class="stat-value">1</div>
+                    <div class="stat-sub">بازتلاش خودکار</div>
+                </div>
+                <div class="stat-card idle animate-in" data-filter="idle">
+                    <div class="stat-header">
+                        <span class="stat-label">غیرفعال</span>
+                        <div class="stat-icon"><i class="fas fa-pause-circle"></i></div>
+                    </div>
+                    <div class="stat-value">0</div>
+                    <div class="stat-sub">غیرفعال شده</div>
+                </div>
+            </section>
+
+            <div class="toolbar animate-in" style="animation-delay: 0.3s;">
+                <div class="toolbar-right" role="tablist" aria-label="فیلتر وضعیت">
+                    <button class="filter-tab active" data-status="all" role="tab" aria-selected="true">همه جاب‌ها</button>
+                    <button class="filter-tab" data-status="running" role="tab" aria-selected="false"><span class="count running-count">43</span> اجرا</button>
+                    <button class="filter-tab" data-status="error" role="tab" aria-selected="false"><span class="count error-count">4</span> خطا</button>
+                    <button class="filter-tab" data-status="success" role="tab" aria-selected="false"><span class="count success-count">39</span> موفق</button>
+                    <button class="filter-tab" data-status="failed" role="tab" aria-selected="false"><span class="count failed-count">1</span> شکست</button>
+                </div>
+                <div class="toolbar-left">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="جستجوی نام جاب..." aria-label="جستجوی نام جاب">
+                    </div>
+                </div>
+            </div>
+
+            <main class="jobs-container animate-in" style="animation-delay: 0.35s;" role="table" aria-label="لیست جاب‌ها">
+                <div class="jobs-header" role="row">
+                    <div role="columnheader"></div>
+                    <div role="columnheader">نام جاب</div>
+                    <div role="columnheader">وضعیت</div>
+                    <div role="columnheader">پیشرفت</div>
+                    <div role="columnheader">مدت اجرا</div>
+                    <div role="columnheader">اجرای بعدی</div>
+                    <div role="columnheader"></div>
+                </div>
+                <div id="jobsBody" role="rowgroup"></div>
+                <div class="pagination-bar">
+                    <div class="pagination-info">نمایش <strong>۱</strong> تا <strong>۱۰</strong> از <strong id="totalJobs">87</strong> جاب</div>
+                    <div class="pagination-controls">
+                        <button class="page-btn" aria-label="صفحه قبل"><i class="fas fa-chevron-right"></i></button>
+                        <button class="page-btn active">۱</button>
+                        <button class="page-btn">۲</button>
+                        <button class="page-btn">۳</button>
+                        <button class="page-btn">...</button>
+                        <button class="page-btn">۹</button>
+                        <button class="page-btn" aria-label="صفحه بعد"><i class="fas fa-chevron-left"></i></button>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- ======== پنل گانت ======== -->
+        <div class="view-panel" id="ganttPanel">
+            <div class="gantt-wrapper">
+                <!-- نوار ابزار گانت -->
+                <div class="gantt-toolbar">
+                    <div class="gantt-toolbar-right">
+                        <button class="gantt-filter-chip active" data-gantt-filter="all">
+                            همه
+                        </button>
+                        <button class="gantt-filter-chip" data-gantt-filter="running">
+                            <span class="chip-dot running"></span>
+                            اجرا
+                        </button>
+                        <button class="gantt-filter-chip" data-gantt-filter="error">
+                            <span class="chip-dot error"></span>
+                            خطا
+                        </button>
+                        <button class="gantt-filter-chip" data-gantt-filter="success">
+                            <span class="chip-dot success"></span>
+                            موفق
+                        </button>
+                        <button class="gantt-filter-chip" data-gantt-filter="failed">
+                            <span class="chip-dot failed"></span>
+                            شکست
+                        </button>
+                    </div>
+                    <div class="gantt-toolbar-left">
+                        <button class="gantt-zoom-btn" id="zoomOut" aria-label="کوچک‌نمایی"><i class="fas fa-search-minus"></i></button>
+                        <span class="gantt-zoom-label" id="zoomLabel">۱۰۰٪</span>
+                        <button class="gantt-zoom-btn" id="zoomIn" aria-label="بزرگ‌نمایی"><i class="fas fa-search-plus"></i></button>
+                    </div>
+                </div>
+
+                <!-- ناحیه گانت -->
+                <div class="gantt-area">
+                    <!-- لیبل‌ها -->
+                    <div class="gantt-labels" id="ganttLabels">
+                        <div class="gantt-label-header">نام جاب</div>
+                        <!-- با JS پر می‌شه -->
+                    </div>
+
+                    <!-- تایم‌لاین -->
+                    <div class="gantt-timeline-wrapper" id="ganttTimelineWrapper">
+                        <div class="gantt-timeline" id="ganttTimeline">
+                            <div class="gantt-time-header" id="ganttTimeHeader">
+                                <!-- با JS پر می‌شه -->
+                            </div>
+                            <div class="gantt-grid" id="ganttGrid"></div>
+                            <div class="gantt-rows" id="ganttRows">
+                                <!-- با JS پر می‌شه -->
+                            </div>
+                            <div class="gantt-now-line" id="ganttNowLine"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ======== پنل گزارش (خالی - برای صفحات بعدی) ======== -->
+        <div class="view-panel" id="reportPanel">
+            <div style="padding: 80px 20px; text-align: center; color: var(--text-muted);">
+                <i class="fas fa-file-alt" style="font-size: 40px; margin-bottom: 16px; display: block; opacity: 0.3;"></i>
+                <div style="font-size: 16px; font-weight: 600; margin-bottom: 6px; color: var(--text-secondary);">صفحه گزارش کامل</div>
+                <div style="font-size: 13px;">این بخش در طراحی بعدی تکمیل می‌شود</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- تولتیپ گانت -->
+    <div class="gantt-tooltip" id="ganttTooltip">
+        <div class="gantt-tooltip-name" id="ttName"></div>
+        <div class="gantt-tooltip-row">
+            <span class="gantt-tooltip-label">وضعیت</span>
+            <span class="gantt-tooltip-value" id="ttStatus"></span>
+        </div>
+        <div class="gantt-tooltip-row">
+            <span class="gantt-tooltip-label">شروع</span>
+            <span class="gantt-tooltip-value" id="ttStart"></span>
+        </div>
+        <div class="gantt-tooltip-row">
+            <span class="gantt-tooltip-label">پایان</span>
+            <span class="gantt-tooltip-value" id="ttEnd"></span>
+        </div>
+        <div class="gantt-tooltip-row">
+            <span class="gantt-tooltip-label">مدت</span>
+            <span class="gantt-tooltip-value" id="ttDuration"></span>
+        </div>
+        <div class="gantt-tooltip-row">
+            <span class="gantt-tooltip-label">پیشرفت</span>
+            <span class="gantt-tooltip-value" id="ttProgress"></span>
+        </div>
+    </div>
+
+    <script>
+        // === داده‌های جاب‌ها ===
+        const jobsData = [
+            { name: '00_Sync_USP_Update_ShoppingSummery', category: 'Sync / StoredProcedure', status: 'running', progress: 67, duration: '00:12:34', nextRun: '—', steps: 'گام ۳ از ۵', startMin: 0, endMin: 45 },
+            { name: 'cdc.MasterData_capture', category: 'CDC / Capture', status: 'running', progress: 45, duration: '00:05:12', nextRun: '—', steps: 'در حال خواندن', startMin: 5, endMin: 30 },
+            { name: 'ETL_DimCustomer_Transform', category: 'ETL / Transform', status: 'running', progress: 82, duration: '00:23:07', nextRun: '—', steps: 'گام ۴ از ۵', startMin: 2, endMin: 65 },
+            { name: 'sp_Rebuild_Indexes_Nightly', category: 'Maintenance / Index', status: 'success', progress: 100, duration: '01:45:22', nextRun: '۱۲:۰۰ AM', steps: 'تکمیل‌شده', startMin: 0, endMin: 105 },
+            { name: 'Backup_Full_Database_Main', category: 'Backup / Full', status: 'success', progress: 100, duration: '00:32:15', nextRun: '۲:۰۰ AM', steps: 'تکمیل‌شده', startMin: 10, endMin: 42 },
+            { name: 'usp_CheckDataIntegrity_FactSales', category: 'Validation / Integrity', status: 'error', progress: 31, duration: '00:08:44', nextRun: '—', steps: 'خطا در گام ۲', startMin: 15, endMin: 35 },
+            { name: 'cdc.TransactionDetails_capture', category: 'CDC / Capture', status: 'running', progress: 23, duration: '00:02:56', nextRun: '—', steps: 'در حال خواندن', startMin: 20, endMin: 40 },
+            { name: 'sp_SendEmail_AlertQueue', category: 'Notification / Email', status: 'error', progress: 0, duration: '00:00:03', nextRun: 'هر ۱۵ دقیقه', steps: 'خطای SMTP', startMin: 8, endMin: 10 },
+            { name: 'ETL_FactSales_Load', category: 'ETL / Load', status: 'running', progress: 55, duration: '00:18:33', nextRun: '—', steps: 'گام ۳ از ۴', startMin: 12, endMin: 58 },
+            { name: 'usp_Cleanup_TempTables', category: 'Maintenance / Cleanup', status: 'success', progress: 100, duration: '00:01:12', nextRun: 'هر ساعت', steps: 'تکمیل‌شده', startMin: 0, endMin: 5 },
+            { name: 'sp_Refresh_MaterializedViews', category: 'Refresh / MV', status: 'failed', progress: 78, duration: '00:44:01', nextRun: 'بازتلاش در ۵ دقیقه', steps: 'تایم‌اوت', startMin: 3, endMin: 55 },
+            { name: 'ETL_DimProduct_SCD2', category: 'ETL / SCD', status: 'running', progress: 91, duration: '00:31:20', nextRun: '—', steps: 'گام ۵ از ۵', startMin: 7, endMin: 62 },
+            { name: 'sp_Update_Statistics_AllDB', category: 'Maintenance / Stats', status: 'success', progress: 100, duration: '00:22:08', nextRun: '۳:۰۰ AM', steps: 'تکمیل‌شده', startMin: 20, endMin: 48 },
+            { name: 'cdc.Inventory_capture', category: 'CDC / Capture', status: 'running', progress: 12, duration: '00:01:15', nextRun: '—', steps: 'در حال خواندن', startMin: 30, endMin: 45 },
+            { name: 'usp_Export_CSV_Reports', category: 'Export / CSV', status: 'error', progress: 56, duration: '00:06:44', nextRun: '—', steps: 'خطای دسترسی فایل', startMin: 18, endMin: 38 },
+            { name: 'sp_Log_Shipping_Restore', category: 'HA / LogShipping', status: 'running', progress: 38, duration: '00:09:22', nextRun: '—', steps: 'گام ۲ از ۳', startMin: 25, endMin: 60 },
+            { name: 'ETL_FactInventory_Load', category: 'ETL / Load', status: 'running', progress: 71, duration: '00:15:48', nextRun: '—', steps: 'گام ۳ از ۴', startMin: 15, endMin: 52 },
+            { name: 'usp_CheckDiskSpace', category: 'Monitoring / Disk', status: 'success', progress: 100, duration: '00:00:08', nextRun: 'هر ۱۰ دقیقه', steps: 'تکمیل‌شده', startMin: 40, endMin: 42 },
+            { name: 'sp_Partition_Switch_Monthly', category: 'Partition / Switch', status: 'error', progress: 44, duration: '00:11:33', nextRun: '—', steps: 'خطای قفل', startMin: 22, endMin: 50 },
+            { name: 'ETL_DimDate_Generate', category: 'ETL / Dimension', status: 'success', progress: 100, duration: '00:00:45', nextRun: 'ماهانه', steps: 'تکمیل‌شده', startMin: 45, endMin: 47 },
+            { name: 'cdc.OrderHeader_capture', category: 'CDC / Capture', status: 'running', progress: 58, duration: '00:07:20', nextRun: '—', steps: 'در حال خواندن', startMin: 35, endMin: 55 },
+            { name: 'sp_Merge_Delta_Updates', category: 'Sync / Merge', status: 'running', progress: 34, duration: '00:04:55', nextRun: '—', steps: 'گام ۲ از ۴', startMin: 28, endMin: 48 },
+            { name: 'usp_Archive_HistoricalData', category: 'Archive / Historical', status: 'success', progress: 100, duration: '02:15:30', nextRun: 'هفتگی', steps: 'تکمیل‌شده', startMin: 0, endMin: 90 },
+            { name: 'ETL_FactFinance_Load', category: 'ETL / Load', status: 'running', progress: 19, duration: '00:03:41', nextRun: '—', steps: 'گام ۱ از ۴', startMin: 42, endMin: 65 },
+            { name: 'sp_DBCC_CheckDB_System', category: 'Maintenance / DBCC', status: 'success', progress: 100, duration: '00:55:12', nextRun: 'یکشنبه ۱:۰۰ AM', steps: 'تکمیل‌شده', startMin: 50, endMin: 105 },
+        ];
+
+        const statusLabels = { running: 'در حال اجرا', error: 'خطا', success: 'موفق', failed: 'شکست‌خورده', idle: 'غیرفعال' };
+
+        // === متغیرهای حالت ===
+        let currentFilter = 'all';
+        let searchTerm = '';
+        let ganttFilter = 'all';
+        let zoomLevel = 100;
+        const BASE_MIN_WIDTH = 90; // پیکسل برای هر دقیقه
+
+        // === تب‌های اصلی ===
+        document.querySelectorAll('.main-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.main-tab').forEach(t => {
+                    t.classList.remove('active');
+                    t.setAttribute('aria-selected', 'false');
+                });
+                tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
+
+                document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+                const viewId = tab.dataset.view + 'Panel';
+                document.getElementById(viewId).classList.add('active');
+
+                // وقتی گانت باز شد، رندر کن
+                if (tab.dataset.view === 'gantt') {
+                    renderGantt();
+                }
+            });
+        });
+
+        // === رندر لیست جاب‌ها ===
+        function renderJobs() {
+            const container = document.getElementById('jobsBody');
+            let filtered = jobsData.filter(job => {
+                const matchStatus = currentFilter === 'all' || job.status === currentFilter;
+                const matchSearch = searchTerm === '' || job.name.toLowerCase().includes(searchTerm.toLowerCase());
+                return matchStatus && matchSearch;
+            });
+
+            document.getElementById('totalJobs').textContent = filtered.length;
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="padding: 60px 20px; text-align: center; color: var(--text-muted);">
+                    <i class="fas fa-search" style="font-size: 28px; margin-bottom: 12px; display: block; opacity: 0.4;"></i>
+                    <div style="font-size: 14px;">جابی با این فیلتر یافت نشد</div>
+                </div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map((job, i) => `
+                <div class="job-row job-row-animate" style="animation-delay: ${i * 0.03}s;" data-status="${job.status}">
+                    <div class="job-checkbox"><input type="checkbox" aria-label="انتخاب ${job.name}"></div>
+                    <div class="job-name-cell">
+                        <div class="job-name" title="${job.name}">${highlightSearch(job.name)}</div>
+                        <div class="job-category"><i class="fas fa-folder-open"></i> ${job.category}</div>
+                    </div>
+                    <div><span class="status-badge ${job.status}">${job.status === 'running' ? '<span class="pulse-dot"></span>' : ''}${statusLabels[job.status]}</span></div>
+                    <div class="progress-cell">
+                        <div class="progress-bar-wrapper"><div class="progress-bar-fill ${job.status}" style="width: ${job.progress}%"></div></div>
+                        <span class="progress-text">${Math.floor(job.progress)}%</span>
+                    </div>
+                    <div class="time-cell"><i class="far fa-clock"></i> ${job.duration}</div>
+                    <div class="next-run-cell">${job.nextRun}</div>
+                    <div><div class="tooltip-wrapper"><button class="action-btn" aria-label="عملیات"><i class="fas fa-ellipsis-v"></i></button><div class="tooltip">عملیات بیشتر</div></div></div>
+                </div>
+            `).join('');
+        }
+
+        function highlightSearch(text) {
+            if (!searchTerm) return text;
+            const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            return text.replace(regex, '<mark style="background: rgba(61,217,182,0.25); color: var(--accent-running); border-radius: 2px; padding: 0 1px;">$1</mark>');
+        }
+
+        // فیلتر تب‌های لیست
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.filter-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+                tab.classList.add('active');
+                tab.setAttribute('aria-selected', 'true');
+                currentFilter = tab.dataset.status;
+                renderJobs();
+            });
+        });
+
+        // کلیک روی کارت‌های آماری
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const filter = card.dataset.filter;
+                if (!filter) return;
+                document.querySelectorAll('.filter-tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+                const matchingTab = document.querySelector(`.filter-tab[data-status="${filter}"]`);
+                if (matchingTab) { matchingTab.classList.add('active'); matchingTab.setAttribute('aria-selected', 'true'); }
+                currentFilter = filter;
+                renderJobs();
+            });
+            card.style.cursor = 'pointer';
+        });
+
+        // جستجو
+        const searchInput = document.getElementById('searchInput');
+        let searchDebounce;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchDebounce);
+            searchDebounce = setTimeout(() => { searchTerm = e.target.value.trim(); renderJobs(); }, 200);
+        });
+
+        // بروزرسانی
+        document.getElementById('refreshBtn').addEventListener('click', function() {
+            this.classList.add('spinning');
+            setTimeout(() => {
+                this.classList.remove('spinning');
+                jobsData.forEach(job => { if (job.status === 'running') job.progress = Math.min(99, job.progress + Math.floor(Math.random() * 5)); });
+                renderJobs();
+            }, 600);
+        });
+
+        // === نمودار گانت ===
+        function getFilteredGanttJobs() {
+            return jobsData.filter(job => ganttFilter === 'all' || job.status === ganttFilter);
+        }
+
+        function renderGantt() {
+            const jobs = getFilteredGanttJobs();
+            const minPerCol = 5; // هر ستون ۵ دقیقه
+            const maxMin = Math.max(...jobs.map(j => j.endMin), 60);
+            const totalCols = Math.ceil(maxMin / minPerCol);
+            const cellWidth = (BASE_MIN_WIDTH / 5) * minPerCol * (zoomLevel / 100);
+
+            // تنظیم عرض تایم‌لاین
+            const timeline = document.getElementById('ganttTimeline');
+            timeline.style.width = (totalCols * cellWidth) + 'px';
+
+            // هدر زمان
+            const timeHeader = document.getElementById('ganttTimeHeader');
+            timeHeader.innerHTML = '';
+            for (let i = 0; i < totalCols; i++) {
+                const startM = i * minPerCol;
+                const cell = document.createElement('div');
+                cell.className = 'gantt-time-cell';
+                cell.style.width = cellWidth + 'px';
+                cell.textContent = formatTime(startM);
+                timeHeader.appendChild(cell);
+            }
+
+            // خطوط شبکه
+            const grid = document.getElementById('ganttGrid');
+            grid.innerHTML = '';
+            for (let i = 0; i < totalCols; i++) {
+                const line = document.createElement('div');
+                line.className = 'gantt-grid-line';
+                line.style.left = (i * cellWidth) + 'px';
+                grid.appendChild(line);
+            }
+
+            // لیبل‌ها
+            const labelsContainer = document.getElementById('ganttLabels');
+            // حذف ردیف‌های قبلی (غیر از هدر)
+            while (labelsContainer.children.length > 1) labelsContainer.removeChild(labelsContainer.lastChild);
+
+            jobs.forEach(job => {
+                const row = document.createElement('div');
+                row.className = 'gantt-label-row';
+                row.innerHTML = `
+                    <span class="gantt-label-status-dot ${job.status}"></span>
+                    <span class="gantt-label-name" title="${job.name}">${job.name}</span>
+                `;
+                labelsContainer.appendChild(row);
+            });
+
+            // ردیف‌ها و بارها
+            const rowsContainer = document.getElementById('ganttRows');
+            rowsContainer.innerHTML = '';
+
+            jobs.forEach((job, idx) => {
+                const row = document.createElement('div');
+                row.className = 'gantt-row';
+
+                const left = (job.startMin / minPerCol) * cellWidth;
+                const width = Math.max(((job.endMin - job.startMin) / minPerCol) * cellWidth, 20);
+
+                const bar = document.createElement('div');
+                bar.className = `gantt-bar ${job.status}`;
+                bar.style.left = left + 'px';
+                bar.style.width = width + 'px';
+
+                // نوار پیشرفت داخل بار
+                const progressFill = document.createElement('div');
+                progressFill.className = 'gantt-bar-progress';
+                progressFill.style.width = job.progress + '%';
+                bar.appendChild(progressFill);
+
+                // رویداد تولتیپ
+                bar.addEventListener('mouseenter', (e) => showGanttTooltip(e, job));
+                bar.addEventListener('mousemove', (e) => moveGanttTooltip(e));
+                bar.addEventListener('mouseleave', hideGanttTooltip);
+
+                row.appendChild(bar);
+                rowsContainer.appendChild(row);
+            });
+
+            // خط «الان» — فرض می‌کنیم الان دقیقه ۳۲ هست
+            const nowLine = document.getElementById('ganttNowLine');
+            const nowPos = (32 / minPerCol) * cellWidth;
+            nowLine.style.left = nowPos + 'px';
+            nowLine.style.display = 'block';
+        }
+
+        function formatTime(mins) {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+        }
+
+        function formatDuration(mins) {
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            if (h > 0) return `${h} ساعت ${m} دقیقه`;
+            return `${m} دقیقه`;
+        }
+
+        // تولتیپ گانت
+        const tooltip = document.getElementById('ganttTooltip');
+
+        function showGanttTooltip(e, job) {
+            document.getElementById('ttName').textContent = job.name;
+            document.getElementById('ttStatus').textContent = statusLabels[job.status];
+            document.getElementById('ttStart').textContent = formatTime(job.startMin);
+            document.getElementById('ttEnd').textContent = formatTime(job.endMin);
+            document.getElementById('ttDuration').textContent = formatDuration(job.endMin - job.startMin);
+            document.getElementById('ttProgress').textContent = Math.floor(job.progress) + '%';
+            tooltip.classList.add('visible');
+            moveGanttTooltip(e);
+        }
+
+        function moveGanttTooltip(e) {
+            const x = e.clientX + 16;
+            const y = e.clientY - 10;
+            // جلوگیری از خروج از صفحه
+            const maxX = window.innerWidth - 260;
+            const maxY = window.innerHeight - 180;
+            tooltip.style.left = Math.min(x, maxX) + 'px';
+            tooltip.style.top = Math.min(y, maxY) + 'px';
+        }
+
+        function hideGanttTooltip() {
+            tooltip.classList.remove('visible');
+        }
+
+        // فیلتر گانت
+        document.querySelectorAll('.gantt-filter-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('.gantt-filter-chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                ganttFilter = chip.dataset.ganttFilter;
+                renderGantt();
+            });
+        });
+
+        // زوم گانت
+        document.getElementById('zoomIn').addEventListener('click', () => {
+            zoomLevel = Math.min(200, zoomLevel + 20);
+            document.getElementById('zoomLabel').textContent = zoomLevel + '%';
+            renderGantt();
+        });
+
+        document.getElementById('zoomOut').addEventListener('click', () => {
+            zoomLevel = Math.max(40, zoomLevel - 20);
+            document.getElementById('zoomLabel').textContent = zoomLevel + '%';
+            renderGantt();
+        });
+
+        // اسکرول همگام لیبل‌ها و تایم‌لاین (عمودی)
+        document.getElementById('ganttTimelineWrapper').addEventListener('scroll', function() {
+            // اسکرول عمودی لیبل‌ها با تایم‌لاین همگام بشه
+        });
+
+        // انیمیشن پروگرس‌بار لیست
+        function animateProgress() {
+            jobsData.forEach(job => {
+                if (job.status === 'running' && job.progress < 99) {
+                    job.progress = Math.min(99, job.progress + Math.random() * 0.3);
+                }
+            });
+
+            // بروزرسانی پروگرس‌بارهای لیست
+            if (document.getElementById('listPanel').classList.contains('active')) {
+                document.querySelectorAll('.job-row').forEach((row, i) => {
+                    if (row.dataset.status === 'running') {
+                        const fill = row.querySelector('.progress-bar-fill');
+                        const text = row.querySelector('.progress-text');
+                        const filteredJobs = jobsData.filter(job => {
+                            const matchStatus = currentFilter === 'all' || job.status === currentFilter;
+                            const matchSearch = searchTerm === '' || job.name.toLowerCase().includes(searchTerm.toLowerCase());
+                            return matchStatus && matchSearch;
+                        });
+                        if (filteredJobs[i]) {
+                            const pct = Math.floor(filteredJobs[i].progress);
+                            fill.style.width = pct + '%';
+                            text.textContent = pct + '%';
+                        }
+                    }
+                });
+            }
+
+            // بروزرسانی بارهای گانت
+            if (document.getElementById('ganttPanel').classList.contains('active')) {
+                document.querySelectorAll('.gantt-bar-progress').forEach((fill, i) => {
+                    const filteredJobs = getFilteredGanttJobs();
+                    if (filteredJobs[i]) {
+                        fill.style.width = Math.floor(filteredJobs[i].progress) + '%';
+                    }
+                });
+            }
+        }
+
+        setInterval(animateProgress, 2000);
+
+        // رندر اولیه
+        renderJobs();
+    </script>
+</body>
+</html>
