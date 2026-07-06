@@ -8,9 +8,15 @@ A lightweight web dashboard to monitor **SQL Server Agent Jobs** — running job
 
 ### Prerequisites
 
-- Python 3.9+
-- [ODBC Driver 17 or 18 for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)
-- A SQL login with **SELECT** on `msdb` (`sysjobs`, `sysjobhistory`, `sysjobactivity`)
+See **[INSTALL.md](INSTALL.md)** for full step-by-step setup on a **fresh PC** (Python, ODBC, SQL permissions).
+
+| Component | Required |
+|-----------|----------|
+| Python 3.9+ (64-bit) | Yes — [python.org](https://www.python.org/downloads/) |
+| ODBC Driver 17 or 18 | Yes — [Microsoft download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
+| SQL login (SELECT on `msdb`) | Yes |
+
+> **Common issue:** *"Python was not found… Microsoft Store"* → install Python, disable **App execution aliases** for `python.exe`, then run `setup.bat` again. Details in [INSTALL.md](INSTALL.md).
 
 ### Install & Run
 
@@ -74,9 +80,15 @@ Use **تغییر اتصال** (Change Connection) in the header to reconfigure.
 
 ### پیش‌نیاز
 
-- Python 3.9+
-- ODBC Driver 17 یا 18 for SQL Server
-- یک SQL Login با دسترسی **SELECT** روی `msdb`
+راهنمای کامل نصب از صفر: **[INSTALL.md](INSTALL.md)**
+
+| مورد | الزامی |
+|------|--------|
+| Python 3.9+ | بله |
+| ODBC Driver 17 یا 18 | بله |
+| SQL Login با SELECT روی msdb | بله |
+
+> اگر پیام *Python was not found* دیدید → Python نصب کنید، alias فروشگاه ویندوز را خاموش کنید، `setup.bat` را دوباره اجرا کنید.
 
 ### نصب و اجرا
 
