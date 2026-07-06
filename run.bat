@@ -2,10 +2,14 @@
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
 
-set "PYTHON_CMD="
-for /f "delims=" %%P in ('call "%~dp0scripts\resolve_python.bat"') do set "PYTHON_CMD=%%P"
+set "PYTHON_EXE="
+set "PYTHON_PYARG="
+for /f "tokens=1,2 delims=|" %%A in ('powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\resolve_python.ps1" 2^>nul') do (
+    if /i "%%A"=="EXE" set "PYTHON_EXE=%%B"
+    if /i "%%A"=="PY" set "PYTHON_EXE=py" & set "PYTHON_PYARG=%%B"
+)
 
-if not defined PYTHON_CMD (
+if not defined PYTHON_EXE (
     call "%~dp0scripts\print_python_help.bat"
     echo Run setup.bat first.
     pause
@@ -21,7 +25,12 @@ if not exist "%~dp0app.py" (
 echo Starting SQL Server Agent Monitor...
 echo Browser: http://localhost:8050
 start "" "http://localhost:8050" 2>nul
-%PYTHON_CMD% "%~dp0app.py"
+
+if defined PYTHON_PYARG (
+    %PYTHON_EXE% %PYTHON_PYARG% "%~dp0app.py"
+) else (
+    "%PYTHON_EXE%" "%~dp0app.py"
+)
 set "APP_RC=!errorlevel!"
 
 if !APP_RC! neq 0 (

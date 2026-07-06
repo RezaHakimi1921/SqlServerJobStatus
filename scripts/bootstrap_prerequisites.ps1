@@ -1,21 +1,18 @@
-# Auto-download and install Python 3.12 + ODBC Driver for SQL Server (Windows).
-# Requires internet. Run from setup.bat when prerequisites are missing.
+# Auto-download and install Python 3.12 + optional ODBC Driver (Windows).
+param(
+    [switch]$PythonOnly,
+    [switch]$OdbcOnly
+)
 
 $ErrorActionPreference = "Continue"
 
+function Write-Step([string]$Msg) {
+    Write-Host ""
+    Write-Host $Msg
+    [Console]::Out.Flush()
+}
+
 function Test-PythonInstalled {
-    $candidates = @(
-        @("py", "-3"),
-        @("py"),
-        @("python3"),
-        @("python")
-    )
-    foreach ($args in $candidates) {
-        try {
-            & $args[0] @($args[1..($args.Length - 1)]) -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)" 2>$null
-            if ($LASTEXITCODE -eq 0) { return $true }
-        } catch {}
-    }
     $paths = @(
         "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
@@ -24,39 +21,52 @@ function Test-PythonInstalled {
     foreach ($p in $paths) {
         if (Test-Path $p) { return $true }
     }
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        foreach ($v in @("-3.12", "-3.11", "-3")) {
+            & py $v -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)" 2>$null
+            if ($LASTEXITCODE -eq 0) { return $true }
+        }
+    }
     return $false
 }
 
-function Install-Python {
-    Write-Host ""
-    Write-Host "[1/2] Installing Python 3.12..."
-
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Write-Host "  Trying winget..."
-        winget install --id Python.Python.3.12 -e `
-            --accept-package-agreements --accept-source-agreements --disable-interactivity
-        if ($LASTEXITCODE -eq 0 -and (Test-PythonInstalled)) {
-            Write-Host "  OK  Python installed via winget."
+function Download-FileWithProgress([string]$Url, [string]$Dest) {
+    Write-Host "  URL: $Url"
+    try {
+        if (Get-Command Start-BitsTransfer -ErrorAction SilentlyContinue) {
+            Start-BitsTransfer -Source $Url -Destination $Dest -DisplayName "Download" -Description "Downloading..."
+            Write-Host "  Download complete."
             return $true
         }
-        Write-Host "  winget install did not complete successfully."
-    } else {
-        Write-Host "  winget not found, using direct download..."
+    } catch {
+        Write-Host "  BITS failed, using WebRequest..."
     }
 
+    $wc = New-Object System.Net.WebClient
+    $wc.DownloadFile($Url, $Dest)
+    Write-Host "  Download complete."
+    return $true
+}
+
+function Install-PythonDirect {
     $version = "3.12.7"
     $url = "https://www.python.org/ftp/python/$version/python-$version-amd64.exe"
     $dest = Join-Path $env:TEMP "python-$version-amd64.exe"
 
-    Write-Host "  Downloading Python $version..."
+    Write-Step "  Downloading Python $version..."
     try {
-        Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+        Download-FileWithProgress -Url $url -Dest $dest | Out-Null
     } catch {
         Write-Host "  ERROR: Download failed: $_"
         return $false
     }
 
-    Write-Host "  Running installer (quiet, add to PATH)..."
+    if (-not (Test-Path $dest)) {
+        Write-Host "  ERROR: Download file missing."
+        return $false
+    }
+
+    Write-Host "  Running installer - wait 1-3 minutes..."
     $proc = Start-Process -FilePath $dest -ArgumentList @(
         "/quiet", "InstallAllUsers=0", "PrependPath=1", "Include_pip=1", "Include_launcher=1"
     ) -Wait -PassThru
@@ -67,54 +77,81 @@ function Install-Python {
         return $false
     }
 
+    Start-Sleep -Seconds 3
     if (Test-PythonInstalled) {
         Write-Host "  OK  Python installed."
         return $true
     }
 
-    Write-Host "  ERROR: Python installer finished but python.exe was not found."
-    Write-Host "  Disable Store aliases: Settings > Apps > App execution aliases > OFF python.exe"
+    Write-Host "  ERROR: Installer finished but python.exe was not found."
     return $false
 }
 
-function Test-OdbcInstalled {
-    try {
-        $py = $null
-        foreach ($args in @(@("py", "-3"), @("py"), @("python"))) {
-            & $args[0] @($args[1..($args.Length - 1)]) -c "import pyodbc; d=[x for x in pyodbc.drivers() if 'SQL Server' in x]; raise SystemExit(0 if d else 1)" 2>$null
-            if ($LASTEXITCODE -eq 0) { return $true }
-        }
-    } catch {}
+function Install-PythonWinget {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { return $false }
+
+    Write-Host "  Trying winget (timeout 4 min)..."
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "winget"
+    $psi.Arguments = "install --id Python.Python.3.12 -e --accept-package-agreements --accept-source-agreements --disable-interactivity"
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $proc = [System.Diagnostics.Process]::Start($psi)
+
+    $exited = $proc.WaitForExit(240000)
+    if (-not $exited) {
+        try { $proc.Kill() } catch {}
+        Write-Host "  winget timed out."
+        return $false
+    }
+
+    $out = $proc.StandardOutput.ReadToEnd()
+    if ($out) { $out.Trim().Split("`n") | ForEach-Object { Write-Host "  $_" } }
+    Start-Sleep -Seconds 2
+    return (Test-PythonInstalled)
+}
+
+function Install-Python {
+    Write-Step "[bootstrap] Installing Python 3.12..."
+
+    if (Install-PythonDirect) { return $true }
+
+    Write-Host "  Direct install failed, trying winget..."
+    if (Install-PythonWinget) {
+        Write-Host "  OK  Python installed via winget."
+        return $true
+    }
+
     return $false
 }
 
 function Install-Odbc {
-    Write-Host ""
-    Write-Host "[2/2] Installing ODBC Driver for SQL Server..."
+    Write-Step "[bootstrap] Installing ODBC Driver 17..."
 
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        Write-Host "  Trying winget ODBC Driver 17..."
-        winget install --id Microsoft.MicrosoftODBCDriver17ForSQLServer -e `
-            --accept-package-agreements --accept-source-agreements --disable-interactivity
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  OK  ODBC Driver 17 installed via winget."
+        Write-Host "  Trying winget (timeout 4 min)..."
+        $proc = Start-Process winget -ArgumentList @(
+            "install", "--id", "Microsoft.MicrosoftODBCDriver17ForSQLServer", "-e",
+            "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"
+        ) -PassThru -NoNewWindow -Wait
+        if ($proc.ExitCode -eq 0) {
+            Write-Host "  OK  ODBC Driver 17 installed."
             return $true
         }
-
-        Write-Host "  Trying winget ODBC Driver 18..."
-        winget install --id Microsoft.MicrosoftODBCDriver18ForSQLServer -e `
-            --accept-package-agreements --accept-source-agreements --disable-interactivity
-        if ($LASTEXITCODE -eq 0) {
-            Write-Host "  OK  ODBC Driver 18 installed via winget."
-            return $true
-        }
+        Write-Host "  winget ODBC 17 failed, trying ODBC 18..."
+        $proc = Start-Process winget -ArgumentList @(
+            "install", "--id", "Microsoft.MicrosoftODBCDriver18ForSQLServer", "-e",
+            "--accept-package-agreements", "--accept-source-agreements", "--disable-interactivity"
+        ) -PassThru -NoNewWindow -Wait
+        if ($proc.ExitCode -eq 0) { return $true }
     }
 
     $msiUrl = "https://go.microsoft.com/fwlink/?linkid=2249004"
     $msiDest = Join-Path $env:TEMP "msodbcsql17.msi"
-    Write-Host "  Downloading ODBC Driver 17 MSI..."
+    Write-Host "  Downloading ODBC MSI..."
     try {
-        Invoke-WebRequest -Uri $msiUrl -OutFile $msiDest -UseBasicParsing
+        Download-FileWithProgress -Url $msiUrl -Dest $msiDest | Out-Null
     } catch {
         Write-Host "  ERROR: ODBC download failed: $_"
         return $false
@@ -123,40 +160,37 @@ function Install-Odbc {
     Write-Host "  Running MSI installer..."
     $proc = Start-Process msiexec.exe -ArgumentList "/i", "`"$msiDest`"", "/qn", "IACCEPTMSODBCSQLLICENSETERMS=YES" -Wait -PassThru
     Remove-Item $msiDest -Force -ErrorAction SilentlyContinue
-
-    if ($proc.ExitCode -eq 0) {
-        Write-Host "  OK  ODBC Driver 17 installed."
-        return $true
-    }
-
-    Write-Host "  WARNING: ODBC MSI exit code $($proc.ExitCode). You may install manually later."
-    return $false
+    return ($proc.ExitCode -eq 0)
 }
 
 Write-Host "============================================================"
-Write-Host "  Auto-install prerequisites (Python + ODBC)"
+Write-Host "  Auto-install prerequisites"
 Write-Host "============================================================"
+[Console]::Out.Flush()
 
 $ok = $true
-if (-not (Test-PythonInstalled)) {
-    if (-not (Install-Python)) { $ok = $false }
-} else {
-    Write-Host ""
-    Write-Host "[1/2] Python already installed - skipped."
+
+if (-not $OdbcOnly) {
+    if (Test-PythonInstalled) {
+        Write-Step "[bootstrap] Python already installed - skipped."
+    } elseif (-not (Install-Python)) {
+        $ok = $false
+    }
 }
 
-if (-not (Test-OdbcInstalled)) {
+if (-not $PythonOnly -and $ok -and -not $OdbcOnly) {
     Install-Odbc | Out-Null
-} else {
-    Write-Host ""
-    Write-Host "[2/2] ODBC driver already present - skipped."
+}
+
+if ($OdbcOnly) {
+    Install-Odbc | Out-Null
 }
 
 Write-Host ""
 if ($ok) {
-    Write-Host "Bootstrap finished. Continuing setup..."
+    Write-Host "Bootstrap finished."
     exit 0
 }
 
-Write-Host "Bootstrap failed. Fix errors above and run setup.bat again."
+Write-Host "Bootstrap failed. See errors above."
 exit 1
